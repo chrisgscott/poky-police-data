@@ -54,19 +54,35 @@ with tabs[0]:
         m = folium.Map(location=[map_df['lat'].median(), map_df['lon'].median()], zoom_start=13)
         Fullscreen().add_to(m)
         if not map_df.empty:
+            # Heatmap layer
             hm = HeatMap(
                 data=map_df[['lat','lon']].values,
                 radius=10, blur=7, min_opacity=0.4, max_zoom=1,
+                name='Heatmap'
             )
             hm.add_to(m)
-            marker_cluster = MarkerCluster().add_to(m)
+
+            # MarkerCluster layer with interactive popups
+            marker_cluster = MarkerCluster(name='Incidents').add_to(m)
             for _, row in map_df.iterrows():
                 popup = folium.Popup(f"<b>Date:</b> {row['reported_dt']}<br><b>Type:</b> {row['nature_grp']}<br><b>Address:</b> {row['address']}", max_width=300)
                 folium.Marker(
                     location=[row['lat'], row['lon']],
                     popup=popup,
-                    tooltip=row['nature_grp']
+                    tooltip=f"{row['nature_grp']}<br>{row['reported_dt']}"
                 ).add_to(marker_cluster)
+
+            # Optional: Add a summary circle marker layer for counts per location
+            loc_counts = map_df.groupby(['lat','lon']).size().reset_index(name='count')
+            for _, row in loc_counts.iterrows():
+                if row['count'] > 1:
+                    folium.CircleMarker(
+                        location=[row['lat'], row['lon']],
+                        radius=6 + row['count']**0.5,
+                        color='blue', fill=True, fill_opacity=0.3,
+                        popup=folium.Popup(f"{row['count']} incidents at this location", max_width=200),
+                        tooltip=f"{row['count']} incidents"
+                    ).add_to(m)
         folium.LayerControl().add_to(m)
         import streamlit.components.v1 as components
         folium_map_html = m.get_root().render()
